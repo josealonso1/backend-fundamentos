@@ -1,9 +1,12 @@
 from flask import Flask, request, jsonify
 from flask_sqlalchemy import SQLAlchemy
+from flask_migrate import Migrate
+
 app = Flask(__name__)
 
 app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///app.db'
 db = SQLAlchemy(app)
+migrate = Migrate(app, db)
 
 class Usuario(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -15,13 +18,15 @@ class Usuario(db.Model):
     def serialize(self):
         return{
             "id":self.id,
-            "nombre":self.nombre
+            "nombre":self.nombre,
+            "email":self.email
         }
 
 class Producto(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     nombre = db.Column(db.String(100), nullable=False)
     precio = db.Column(db.Float, nullable=False)
+    descripcion = db.Column(db.String(200), nullable=True)
     usuario_id = db.Column(db.Integer, db.ForeignKey('usuario.id'), nullable=False)
     
     def to_dict(self):
@@ -29,11 +34,10 @@ class Producto(db.Model):
             "id":self.id,
             "nombre":self.nombre,
             "precio":self.precio,
+            "descripcion":self.descripcion,
             "usuario_id":self.usuario_id
         }
     
-with app.app_context():
-    db.create_all()
 
 @app.route('/')
 def home():
@@ -44,19 +48,30 @@ def crear_usuario():
     datos = request.json
     
     if not datos:
-        return jsonify({"error": "No se enviaron datos en formato JSON"})
+        return jsonify({"error": "No se enviaron datos en formato JSON"}), 400
 
-    if "nombre" in datos and "email" in datos:
-        nombre_limpio = datos["nombre"].strip()
-        email_limpio = datos["email"].strip()
-        if not nombre_limpio or len(nombre_limpio) > 50 or not email_limpio or len(email_limpio) > 100:
-            return jsonify({"error": "Los campos no esta correctamente completados"})
+    if "nombre" not in datos or "email" not in datos:
+        return jsonify({"error": "Faltan campos obligatorios"}), 400
+    
+    nombre_limpio = datos["nombre"].strip()
+    email_limpio = datos["email"].strip()
+    
+    if not nombre_limpio or len(nombre_limpio) > 50:
+        return jsonify({"error": "El campo nombre debe estar relleno"}), 400
+    if not email_limpio or len(email_limpio) > 100:
+        return jsonify({"error": "El campo email debe estar relleno"}), 400
     nuevo_usuario = Usuario(nombre=nombre_limpio, email=email_limpio)
     db.session.add(nuevo_usuario)
     db.session.commit()
     
     return jsonify({"mensaje": "Nuevo usuario creado",
-                    "Usuario":nuevo_usuario.serialize()})
+                    "Usuario":nuevo_usuario.serialize()}), 201
+    
+@app.route('/usuarios', methods=['GET'])
+def obtener_usuarios():
+    usuario = Usuario.query.all()
+    resultado = [p.serialize() for p in usuario]
+    return jsonify(resultado), 200
     
 @app.route('/registro', methods=['POST'])
 def registro():
@@ -84,17 +99,26 @@ def crear_producto():
     if not datos:
         return jsonify({"error": "No se enviaron datos en formato JSON"}), 400
     
-    if "nombre" not in datos:
-        return jsonify({"error": "Falta el campo 'nombre'"}), 400
+    if "nombre" not in datos or "precio" not in datos or "usuario_id" not in datos:
+        return jsonify({"error": "Falta el campos obligatorios"}), 400
     
-    if "precio" not in datos:
-        return jsonify({"error": "falta el campo 'precio'"}), 400
+    usuario = Usuario.query.get(datos["usuario_id"])
+    if not usuario:
+        return jsonify({"error": "Ese usuario no existe"}), 404
     
-    nuevo = Producto(nombre=datos["nombre"], precio=datos["precio"])
-    
+    nuevo = Producto(nombre=datos["nombre"], precio=datos["precio"], usuario_id=usuario.id)
     db.session.add(nuevo)
     db.session.commit()
-    return jsonify({"mensaje": "Producto creado"}),201
+    return jsonify(nuevo.to_dict()),201
+
+@app.route('/usuarios/<int:id>/productos', methods=['GET'])
+def productos_de_usuario(id):
+    usuario = Usuario.query.get(id)
+    if not usuario:
+        return jsonify({"error": "Usuario no existe"}), 404
+
+    productos = [p.to_dict() for p in usuario.productos]
+    return jsonify(productos), 200
 
 @app.route('/productos', methods=['GET'])
 def obtener_productos():
