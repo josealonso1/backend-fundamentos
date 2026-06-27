@@ -16,11 +16,11 @@ class Usuario(db.Model):
             "email":self.email
         }
         
-    def set_password(self, password_hash: str):
-        self.password = generate_password_hash(password_hash)
+    def set_password(self, password_plano:str):
+        self.password = generate_password_hash(password_plano)
         
-    def check_password(self, password_hash: str) -> bool:
-        return check_password_hash(self.password, password_hash)
+    def check_password(self, password_plano:str) -> bool:
+        return check_password_hash(self.password, password_plano)
 
 class Producto(db.Model):
     id = db.Column(db.Integer, primary_key=True)

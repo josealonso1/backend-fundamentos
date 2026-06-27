@@ -79,6 +79,7 @@ def eliminar_producto(id):
     if producto is None:
         return jsonify({"error": f"el id con el numero {id} no existe"}), 404
     
+    
     nombre = producto.nombre
     
     db.session.delete(producto)

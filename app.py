@@ -6,6 +6,7 @@ from models import Usuario, Producto
 
 from routes.usuarios import api_users
 from routes.productos import api_productos
+from flask_jwt_extended import JWTManager
 
 
 app = Flask(__name__)
@@ -14,8 +15,13 @@ app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///app.db'
 db.init_app(app)
 migrate = Migrate(app, db)
 
+app.config['JWT_SECRET_KEY'] = 'ejercio-prueba'
+jwt = JWTManager(app)
+
 app.register_blueprint(api_users)
 app.register_blueprint(api_productos)
+
+
 
 @app.route('/')
 def home():
